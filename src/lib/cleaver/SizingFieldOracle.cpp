@@ -196,7 +196,7 @@ void SizingFieldOracle::createOctree()
 double SizingFieldOracle::adaptCell(OTCell *cell)
 {
 //    if(!cell)
-//        return 1e10;    
+//        return 1e10;
 
     BoundingBox domainBounds = m_bounds;
 
@@ -223,7 +223,7 @@ double SizingFieldOracle::adaptCell(OTCell *cell)
     }
     // otherwise it straddles
     else
-        cell->celltype = OTCell::Staddles;
+        cell->celltype = OTCell::Straddles;
 
     BoundingBox bounds = cell->bounds;
 
@@ -242,7 +242,7 @@ double SizingFieldOracle::adaptCell(OTCell *cell)
     float voxel_scale = (float) ((cleaver::ScalarField<float>*)m_sizingField)->scale().x;
 
     //if(bounds.size.x > 0.5)
-    if(bounds.size.x > voxel_scale)    
+    if(bounds.size.x > voxel_scale)
         cell->subdivide();
 
     double min=1e10;
@@ -338,7 +338,7 @@ void SizingFieldOracle::printTree(OTCell *myCell, int n)
 double SizingFieldOracle::getMinLFS(int xLocCode, int yLocCode, int zLocCode, int level) const
 {
     OTCell *pCell = m_tree->getCellAtLevel(xLocCode, yLocCode, zLocCode, level);
-    if(pCell!=NULL)
+    if(pCell!=nullptr)
         return pCell->minLFS;
     else
         return 1e10;

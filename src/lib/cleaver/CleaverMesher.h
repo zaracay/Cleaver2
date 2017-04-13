@@ -3,17 +3,17 @@
 
 #include "Octree.h"
 
-namespace cleaver
-{
-    class Volume;
-    class TetMesh;
-    class CleaverMesherImp;
+namespace cleaver {
+
+class Volume;
+class TetMesh;
+class CleaverMesherImp;
 
 class CleaverMesher
 {
 public:
 
-    CleaverMesher(const Volume *volume);
+    CleaverMesher();
     ~CleaverMesher();
 
     void createTetMesh(bool verbose);
@@ -21,20 +21,20 @@ public:
     TetMesh* getBackgroundMesh() const;
 
     void setVolume(const Volume *volume);
-    const Volume* getVolume() const;
+    Volume* getVolume() const;
 
-    void cleanup();    
+    void cleanup();
     //================================
 
     enum TopologyMode { TopologyModeNone, TopologyModeSubdivide, TopologyModeCleave };
 
     void setTopologyMode(TopologyMode mode);
-		void setAlphaInit(double alpha);
+    void setAlphaInit(double alpha);
 
     //================================
     // Functions for development ONLY.
     // Remove after completion.
-    //================================    
+    //================================
     TetMesh* createBackgroundMesh(bool verbose = false);
     void setBackgroundMesh(TetMesh *);
     void buildAdjacency(bool verbose = false);
@@ -73,12 +73,11 @@ public:
     //================================
     // Data Getters / Setters
     //================================
-    Octree* getTree() const;
+    // Octree* getTree() const;
     void setAlphas(double l, double s);
     void setRegular(bool reg);
 
 private:
-
     CleaverMesherImp *m_pimpl;
     double m_alpha_long;
     double m_alpha_short;

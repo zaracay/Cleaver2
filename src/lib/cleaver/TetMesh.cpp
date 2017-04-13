@@ -84,144 +84,17 @@ namespace cleaver
     {0,2,1}     // 3-face
   };
 
-#define VERTS_PER_FACE 3
-#define EDGES_PER_FACE 3
-#define  TETS_PER_FACE 2
 
-#define VERTS_PER_TET 4
-#define EDGES_PER_TET 6
-#define FACES_PER_TET 4
-
-
-
-  Face::Face() : normal(0,0,0)
-  {
-    tets[0] = tets[1] = -1;
-    face_index[0] = face_index[1] = -1;
-    verts[0] = verts[1] = verts[2] = -1;
-  }
-
-  Face::~Face()
+  TetMesh::TetMesh() : imported(false), time(0)
   {
   }
 
-  Tet::Tet() : quadruple(NULL), mat_label(-1), output(false), evaluated(false), flagged(false)
-  {
-    faces[0] = faces[1] = faces[2] = faces[3] = NULL;
-    tets[0] = tets[1] = tets[2] = tets[3] = NULL;
-    parent = -1;
-  }
-
-  Tet::Tet(Vertex *v1, Vertex *v2, Vertex *v3, Vertex *v4, int material) :
-    quadruple(NULL), mat_label(material), output(false), evaluated(false), flagged(false)
-  {
-    // initialize face info to empty
-    faces[0] = faces[1] = faces[2] = faces[3] = NULL;
-    tets[0] = tets[1] = tets[2] = tets[3] = NULL;
-    parent = -1;
-
-    // add adjacency info
-    verts[0] = v1;
-    verts[1] = v2;
-    verts[2] = v3;
-    verts[3] = v4;
-
-    // both ways
-    v1->tets.push_back(this);
-    v2->tets.push_back(this);
-    v3->tets.push_back(this);
-    v4->tets.push_back(this);
-
-  }
-
-  Tet::~Tet()
-  {
-  }
-
-  float Tet::minAngle()
-  {
-    float min = 180;
-
-    //each tet has 6 dihedral angles between pairs of faces
-    //compute the face normals for each face
-    vec3 face_normals[4];
-
-    for (int j=0; j<4; j++) {
-      vec3 v0 = this->verts[(j+1)%4]->pos();
-      vec3 v1 = this->verts[(j+2)%4]->pos();
-      vec3 v2 = this->verts[(j+3)%4]->pos();
-      vec3 normal = normalize(cross(v1-v0,v2-v0));
-
-      // make sure normal faces 4th (opposite) vertex
-      vec3 v3 = this->verts[(j+0)%4]->pos();
-      vec3 v3_dir = normalize(v3 - v0);
-      if(dot(v3_dir, normal) > 0)
-        normal *= -1;
-
-      face_normals[j] = normal;
-    }
-    //now compute the 6 dihedral angles between each pair of faces
-    for (int j=0; j<4; j++)
-      for (int k=j+1; k<4; k++) {
-        double dot_product = dot(face_normals[j], face_normals[k]);
-        dot_product = std::min(1.,std::max(dot_product,-1.));
-
-        double dihedral_angle = 180.0 - acos(dot_product) * 180.0 / PI;
-        dihedral_angle = std::min(180.,std::max(0.,dihedral_angle));
-
-        if (dihedral_angle < min)
-          min = static_cast<float>(dihedral_angle);
-      }
-    return min;
-  }
-
-  float Tet::maxAngle()
-  {
-    float max = 0;
-
-    //each tet has 6 dihedral angles between pairs of faces
-    //compute the face normals for each face
-    vec3 face_normals[4];
-
-    for (int j=0; j<4; j++) {
-      vec3 v0 = this->verts[(j+1)%4]->pos();
-      vec3 v1 = this->verts[(j+2)%4]->pos();
-      vec3 v2 = this->verts[(j+3)%4]->pos();
-      vec3 normal = normalize(cross(v1-v0,v2-v0));
-
-      // make sure normal faces 4th (opposite) vertex
-      vec3 v3 = this->verts[(j+0)%4]->pos();
-      vec3 v3_dir = normalize(v3 - v0);
-      if(dot(v3_dir, normal) > 0)
-        normal *= -1;
-
-      face_normals[j] = normal;
-    }
-    //now compute the 6 dihedral angles between each pair of faces
-    for (int j=0; j<4; j++)
-      for (int k=j+1; k<4; k++) {
-        double dot_product = dot(face_normals[j], face_normals[k]);
-        dot_product = std::min(1.,std::max(dot_product,-1.));
-
-        double dihedral_angle = 180.0 - acos(dot_product) * 180.0 / PI;
-        dihedral_angle = std::min(180.,std::max(0.,dihedral_angle));
-
-        if(dihedral_angle > max)
-          max = (float)dihedral_angle;
-      }
-    return max;
-  }
-
-  TetMesh::TetMesh() : halfFaces(0), imported(false), time(0)
-  {
-  }
-
-  TetMesh::TetMesh(BoundingBox b) : halfFaces(0), imported(false), time(0), bounds(b)
+  TetMesh::TetMesh(BoundingBox b) : imported(false), time(0), bounds(b)
   {
   }
 
   TetMesh::TetMesh(const std::vector<Vertex*> &verts, const std::vector<Tet*> &tets) :
-    verts(verts), tets(tets), halfFaces(0),  imported(false), time(0)
+    verts(verts), tets(tets), imported(false), time(0)
   {
     computeBounds();
   }
@@ -229,23 +102,21 @@ namespace cleaver
   TetMesh::~TetMesh() {
 
     // delete tets verts, faces, etc
-    for(size_t f=0; f < faces.size(); f++)
+    for (size_t f = 0; f < faces.size(); f++) {
       delete faces[f];
-
-    //    std::cout << "TetMesh Going out of scope" << std::endl;
-    if (halfFaces){
-      delete [] halfFaces;
-      halfFaces = NULL;
     }
 
-    for(unsigned int v=0; v < verts.size(); v++)
+    for (unsigned int v = 0; v < verts.size(); v++) {
       delete verts[v];
-    for(unsigned int t=0; t < tets.size(); t++)
+    }
+    for (unsigned int t = 0; t < tets.size(); t++) {
       delete tets[t];
+    }
 
     verts.clear();
     faces.clear();
     tets.clear();
+    halfFaces.clear();
   }
 
   void TetMesh::computeBounds()
@@ -436,6 +307,24 @@ namespace cleaver
   }
 
   //===================================================
+  // vec3 comparator
+  //
+  //===================================================
+  class vec3_compare {
+    public:
+      bool operator()(const vec3 &a, const vec3 &b) const {
+        if ((a.x < b.x) && (b.x - a.x) > 1e-9) return true;
+        else if ((a.x > b.x) && (a.x - b.x) > 1e-9) return false;
+        if ((a.y < b.y) && (b.y - a.y) > 1e-9) return true;
+        else if ((a.y > b.y) && (a.y - b.y) > 1e-9) return false;
+        if ((a.z < b.z) && (b.z - a.z) > 1e-9) return true;
+        else if ((a.z > b.z) && (a.z - b.z) > 1e-9) return false;
+        return false;
+      }
+  };
+  typedef std::map< const vec3, unsigned int, vec3_compare > VertMap;
+
+  //===================================================
   // writePly()
   //
   // Public method that writes the surface mesh
@@ -490,19 +379,51 @@ namespace cleaver
       }
     }
 
-    int face_count = interfaces.size();
-    int vertex_count = 3*face_count;
-
     //-----------------------------------
     //           Write Header
     //-----------------------------------
     file << "ply" << endl;
     file << "format ascii 1.0" << endl;
-    file << "element vertex " << vertex_count << endl;
+
+    //-----------------------------------
+    //         Create Pruned Vertex List
+    //-----------------------------------
+    VertMap vert_map;
+    std::vector<vec3> pruned_verts;
+    unsigned int pruned_pos = 0;
+    for(int f=0; f < interfaces.size(); f++)
+    {
+      Face *face = faces[interfaces[f]];
+
+      Vertex *v1 = this->verts[face->verts[0]];
+      Vertex *v2 = this->verts[face->verts[1]];
+      Vertex *v3 = this->verts[face->verts[2]];
+
+      vec3 p1 = v1->pos();
+      vec3 p2 = v2->pos();
+      vec3 p3 = v3->pos();
+
+      if (!vert_map.count(p1)) {
+        vert_map.insert(std::pair<vec3,unsigned int>(p1,pruned_pos));
+        pruned_pos++;
+        pruned_verts.push_back(p1);
+      }
+      if (!vert_map.count(p2)) {
+        vert_map.insert(std::pair<vec3,unsigned int>(p2,pruned_pos));
+        pruned_pos++;
+        pruned_verts.push_back(p2);
+      }
+      if (!vert_map.count(p3)) {
+        vert_map.insert(std::pair<vec3,unsigned int>(p3,pruned_pos));
+        pruned_pos++;
+        pruned_verts.push_back(p3);
+      }
+    }
+    file << "element vertex " << pruned_verts.size() << endl;
     file << "property float x " << endl;
     file << "property float y " << endl;
     file << "property float z " << endl;
-    file << "element face " << face_count << endl;
+    file << "element face " << interfaces.size() << endl;
     file << "property list uchar int vertex_index" << endl;
     file << "property uchar red" << endl;
     file << "property uchar green" << endl;
@@ -512,37 +433,34 @@ namespace cleaver
     //-----------------------------------
     //         Write Vertex List
     //-----------------------------------
-    for(int f=0; f < face_count; f++)
-    {
-      Face *face = faces[interfaces[f]];
-
-      Vertex *v1 = this->verts[face->verts[0]];
-      Vertex *v2 = this->verts[face->verts[1]];
-      Vertex *v3 = this->verts[face->verts[2]];
-
-      file << v1->pos().x << " " << v1->pos().y << " " << v1->pos().z << endl;
-      file << v2->pos().x << " " << v2->pos().y << " " << v2->pos().z << endl;
-      file << v3->pos().x << " " << v3->pos().y << " " << v3->pos().z << endl;
+    for(std::vector<vec3>::iterator it = pruned_verts.begin();
+        it != pruned_verts.end(); ++it) {
+      file << it->x << " " << it->y << " " << it->z << std::endl;
     }
 
     //-----------------------------------
     //         Write Face List
     //-----------------------------------
-    for(int f=0; f < face_count; f++)
+    for(int f=0; f < interfaces.size(); f++)
     {
       //Face &face = faces[interfaces[f]];
 
+      Face *face = faces[interfaces[f]];
+
+      Vertex *v1 = this->verts[face->verts[0]];
+      Vertex *v2 = this->verts[face->verts[1]];
+      Vertex *v3 = this->verts[face->verts[2]];
+      unsigned int i1 = vert_map.find(v1->pos())->second;
+      unsigned int i2 = vert_map.find(v2->pos())->second;
+      unsigned int i3 = vert_map.find(v3->pos())->second;
       // output 3 vertices
-      file << "3 " << (3*f + 0) << " " << (3*f + 1) << " " << (3*f + 2) << " ";
+      file << "3 " << i1 << " " << i2 << " " << i3 << " ";
 
       // output 3 color components
       file << (int)(255*INTERFACE_COLORS[colors[f]%12][0]) << " ";
       file << (int)(255*INTERFACE_COLORS[colors[f]%12][1]) << " ";
       file << (int)(255*INTERFACE_COLORS[colors[f]%12][2]) << endl;
     }
-
-    // end with a single blank line
-    file << endl;
 
     //-----------------------------------
     //          Close  File
@@ -866,7 +784,7 @@ namespace cleaver
   {
     std::pair<int,int> key = std::make_pair(v1->tm_v_index,v2->tm_v_index);
     std::map<std::pair<int,int>, HalfEdge*>::iterator res = halfEdges.find(key);
-    HalfEdge *half_edge = NULL;
+    HalfEdge *half_edge = nullptr;
 
     // create new one if necessary
     if (res == halfEdges.end())
@@ -904,8 +822,8 @@ namespace cleaver
     {
       for(int f=0; f < FACES_PER_TET; f++)
       {
-        this->tets[t]->faces[f] = NULL;
-        this->tets[t]->tets[f] = NULL;
+        this->tets[t]->faces[f] = nullptr;
+        this->tets[t]->tets[f] = nullptr;
       }
     }
 
@@ -921,7 +839,7 @@ namespace cleaver
       for (int f=0; f < FACES_PER_TET; f++)
       {
         // if information for adjacent tet is null, attempt to fill it in
-        if (this->tets[i]->tets[f] == NULL)
+        if (this->tets[i]->tets[f] == nullptr)
         {
           // first grab the three vertices corresponding to the face[f] opposite vertex j
           Vertex *v0 = this->tets[i]->verts[(f+1) % FACES_PER_TET];
@@ -940,8 +858,8 @@ namespace cleaver
           for (size_t j=0; j < v0->tets.size(); j++)
           {
             Tet *tet = v0->tets[j];
-            if(tet == NULL){
-              std::cout << "PROBLEM! NULL TET" << std::endl;
+            if(tet == nullptr){
+              std::cout << "PROBLEM! nullptr TET" << std::endl;
             }
 
             // Skip self
@@ -984,7 +902,7 @@ namespace cleaver
                 if(tet->verts[m] != v0 && tet->verts[m] != v1 && tet->verts[m] != v2)
                 {
                   // make sure we're not overwriting a value that's already written
-                  if(tet->tets[m] != NULL)
+                  if(tet->tets[m] != nullptr)
                   {
                     if(tet->tets[m] == this->tets[i])
                       std::cout << "ALREADY SET! We're Actually SAFE" << std::endl;
@@ -997,24 +915,24 @@ namespace cleaver
                       std::cout << "overwriting a tet!! Aborting." << std::endl;
                       std::cout << "The three tets that share this face are: " << std::endl;
                       std::cout << "Tet1 (" << tet1 << "): {"
-                        << "v1(" << tet1->verts[0]->order() << "), "
-                        << "v2(" << tet1->verts[1]->order() << "), "
-                        << "v3(" << tet1->verts[2]->order() << "), "
-                        << "v4(" << tet1->verts[3]->order() << ")} "
+                        << "v1(" << (int)tet1->verts[0]->order() << "), "
+                        << "v2(" << (int)tet1->verts[1]->order() << "), "
+                        << "v3(" << (int)tet1->verts[2]->order() << "), "
+                        << "v4(" << (int)tet1->verts[3]->order() << ")} "
                         << " parent = " << tet1->parent
                         << std::endl;
                       std::cout << "Tet2 (" << tet2 << "): {"
-                        << "v1(" << tet2->verts[0]->order() << "), "
-                        << "v2(" << tet2->verts[1]->order() << "), "
-                        << "v3(" << tet2->verts[2]->order() << "), "
-                        << "v4(" << tet2->verts[3]->order() << ")}"
+                        << "v1(" << (int)tet2->verts[0]->order() << "), "
+                        << "v2(" << (int)tet2->verts[1]->order() << "), "
+                        << "v3(" << (int)tet2->verts[2]->order() << "), "
+                        << "v4(" << (int)tet2->verts[3]->order() << ")}"
                         << " parent = " << tet2->parent
                         << std::endl;
                       std::cout << "Tet3 (" << tet3 << "): "
-                        << "v1(" << tet3->verts[0]->order() << "), "
-                        << "v2(" << tet3->verts[1]->order() << "), "
-                        << "v3(" << tet3->verts[2]->order() << "), "
-                        << "v4(" << tet3->verts[3]->order() << ")}"
+                        << "v1(" << (int)tet3->verts[0]->order() << "), "
+                        << "v2(" << (int)tet3->verts[1]->order() << "), "
+                        << "v3(" << (int)tet3->verts[2]->order() << "), "
+                        << "v4(" << (int)tet3->verts[3]->order() << ")}"
                         << " parent = " << tet3->parent
                         << std::endl;
 
@@ -1063,7 +981,7 @@ namespace cleaver
         Face *face = faces[face_count] = new Face();
 
         // Face Is Shared?
-        if(this->tets[i]->tets[j] && this->tets[i]->faces[j] == NULL)
+        if(this->tets[i]->tets[j] && this->tets[i]->faces[j] == nullptr)
         {
           // make a new face
           face->tets[0] = this->tets[i]->tm_index;
@@ -1118,7 +1036,7 @@ namespace cleaver
           face_count++;
         }
         // Boundary Face
-        else if(this->tets[i]->tets[j] == NULL){
+        else if(this->tets[i]->tets[j] == nullptr){
           face->tets[0] = i;
           face->face_index[0] = j;
           face->tets[1] = -1;
@@ -1179,6 +1097,7 @@ namespace cleaver
     double min = 180;
     double max = 0;
     Status status(this->tets.size());
+    std::ofstream debug_output("TetDihedralAngles.txt");
     for (unsigned int i=0; i < this->tets.size(); i++)
     {
       status.printStatus();
@@ -1203,6 +1122,7 @@ namespace cleaver
         face_normals[j] = normal;
       }
 
+      double local_min = 180., local_max = 0.;
 
       //now compute the 6 dihedral angles between each pair of faces
       for (int j=0; j<4; j++) {
@@ -1215,41 +1135,43 @@ namespace cleaver
           }
 
           double dihedral_angle = 180.0 - acos(dot_product) * 180.0 / PI;
-
-          if (dihedral_angle < min)
-          {
-            min = dihedral_angle;
-          }
-          else if(dihedral_angle > max)
-          {
-            max = dihedral_angle;
-            if(max == 180){
-
-              t->flagged = true;
-              std::cout << "ERROR, TET #: " << i << std::endl;
-              std::cout << "bad tet, vert orders { "
-                << t->verts[0]->order() << ", "
-                << t->verts[1]->order() << ", "
-                << t->verts[2]->order() << ", "
-                << t->verts[3]->order() << " } " << std::endl;
-              std::cout << "\t vertex positions: {"
-                << t->verts[0]->pos() << ", "
-                << t->verts[1]->pos() << ", "
-                << t->verts[2]->pos() << ", "
-                << t->verts[3]->pos() << "} " << std::endl;
-              std::cout << "\t exterior?: {"
-                << t->verts[0]->isExterior << ", "
-                << t->verts[1]->isExterior << ", "
-                << t->verts[2]->isExterior << ", "
-                << t->verts[3]->isExterior << "} " << std::endl;
-
-
-
-            }
-          }
+          if (local_min > dihedral_angle) local_min = dihedral_angle;
+          if (local_max < dihedral_angle) local_max = dihedral_angle;
+          if (dihedral_angle < min) min = dihedral_angle;
+          if (dihedral_angle > max) max = dihedral_angle;
         }
       }
+      //DEBUG debugging flat tets, remove when done.
+      if(max == 180){
+
+        t->flagged = true;
+        std::cout << "ERROR, TET #: " << i << std::endl;
+        std::cout << "bad tet, vert orders { "
+          << (int)t->verts[0]->order() << ", "
+          << (int)t->verts[1]->order() << ", "
+          << (int)t->verts[2]->order() << ", "
+          << (int)t->verts[3]->order() << " } " << std::endl;
+        std::cout << "\t vertex positions: {"
+          << t->verts[0]->pos() << ", "
+          << t->verts[1]->pos() << ", "
+          << t->verts[2]->pos() << ", "
+          << t->verts[3]->pos() << "} " << std::endl;
+        std::cout << "\t exterior?: {"
+          << t->verts[0]->isExterior << ", "
+          << t->verts[1]->isExterior << ", "
+          << t->verts[2]->isExterior << ", "
+          << t->verts[3]->isExterior << "} " << std::endl;
+      }
+      debug_output << "Tet# " << i <<
+        ": \t{" << t->verts[0]->tm_v_index <<
+        ", " << t->verts[1]->tm_v_index <<
+        ", " << t->verts[2]->tm_v_index <<
+        ", " << t->verts[3]->tm_v_index <<
+        "}, \tMIN ANG: " << local_min <<
+        ", \tMAX ANG: " << local_max << std::endl;
+      //END DEBUG
     }
+    debug_output.close();
     status.done();
 
     min_angle = min;
@@ -1295,8 +1217,14 @@ namespace cleaver
     case cleaver::Matlab:
       writeMatlab(filename, verbose);
       break;
-    case  cleaver::VTK:
+    case  cleaver::VtkUSG:
       writeVtkUnstructuredGrid(filename, verbose);
+      break;
+    case  cleaver::VtkPoly:
+      writeVtkPolyData(filename, verbose);
+      break;
+    case  cleaver::PLY:
+      writePly(filename, verbose);
       break;
     default: {
                std::cerr << "Unsupported Mesh Format. " << std::endl;
@@ -1304,11 +1232,10 @@ namespace cleaver
              }
     }
   }
-
   //==================================================================
   //
   //==================================================================
-  void TetMesh::writeVtkUnstructuredGrid(const std::string &filename, bool verbose)
+  void TetMesh::writeVtkPolyData(const std::string &filename, bool verbose)
   {
     std::string path = filename.substr(0,filename.find_last_of("/")+1);
     std::string name = filename.substr(filename.find_last_of("/")+1,filename.size() - 1);
@@ -1341,6 +1268,52 @@ namespace cleaver
         std::cout << "\t" << filenames.at(i) << std::endl;
     }
     //-----------------------------------
+    //         Create Pruned Vertex List
+    //-----------------------------------
+    std::vector<VertMap> vert_maps;
+    vert_maps.resize(numTetsPerMat.size());
+    std::vector<std::vector<vec3> > pruned_verts;
+    pruned_verts.resize(numTetsPerMat.size());
+    std::vector<unsigned int> pruned_pos;
+    pruned_pos.resize(numTetsPerMat.size());
+    for(size_t i = 0; i < numTetsPerMat.size();i++)
+      pruned_pos[i] = 0;
+    for(size_t t=0; t < this->tets.size(); t++) {
+      Tet* tet = this->tets[t];
+      size_t label = tet->mat_label;
+
+      Vertex *v1 = tet->verts[0];
+      Vertex *v2 = tet->verts[1];
+      Vertex *v3 = tet->verts[2];
+      Vertex *v4 = tet->verts[3];
+
+      vec3 p1 = v1->pos();
+      vec3 p2 = v2->pos();
+      vec3 p3 = v3->pos();
+      vec3 p4 = v4->pos();
+
+      if (!vert_maps[label].count(p1)) {
+        vert_maps[label].insert(std::pair<vec3,unsigned int>(p1,pruned_pos[label]));
+        pruned_pos[label]++;
+        pruned_verts[label].push_back(p1);
+      }
+      if (!vert_maps[label].count(p2)) {
+        vert_maps[label].insert(std::pair<vec3,unsigned int>(p2,pruned_pos[label]));
+        pruned_pos[label]++;
+        pruned_verts[label].push_back(p2);
+      }
+      if (!vert_maps[label].count(p3)) {
+        vert_maps[label].insert(std::pair<vec3,unsigned int>(p3,pruned_pos[label]));
+        pruned_pos[label]++;
+        pruned_verts[label].push_back(p3);
+      }
+      if (!vert_maps[label].count(p4)) {
+        vert_maps[label].insert(std::pair<vec3,unsigned int>(p4,pruned_pos[label]));
+        pruned_pos[label]++;
+        pruned_verts[label].push_back(p4);
+      }
+    }
+    //-----------------------------------
     //         Write Headers
     //-----------------------------------
     for(size_t i=0; i < numTetsPerMat.size(); i++) {
@@ -1349,17 +1322,17 @@ namespace cleaver
       *output.at(i) << filenames.at(i) << " Tet Mesh\n";
       *output.at(i) << "ASCII\n";
       *output.at(i) << "DATASET POLYDATA\n";
-      *output.at(i) << "POINTS " << this->verts.size() << " float\n";
+      *output.at(i) << "POINTS " << pruned_verts[i].size() << " float\n";
     }
     //-----------------------------------
     //         Write Vertex List
     //-----------------------------------
     for(size_t f=0; f < numTetsPerMat.size(); f++) {
-      for(size_t i=0; i < this->verts.size(); i++)
+      for(size_t i=0; i < pruned_verts[f].size(); i++)
       {
-        *output.at(f) << this->verts[i]->pos().x << " "
-          << this->verts[i]->pos().y << " "
-          << this->verts[i]->pos().z << std::endl;
+        *output.at(f) << pruned_verts[f][i].x << " "
+          << pruned_verts[f][i].y << " "
+          << pruned_verts[f][i].z << std::endl;
       }
       size_t num_tets = numTetsPerMat.at(f);
       *output.at(f) << "POLYGONS " << num_tets*4 << " "
@@ -1372,21 +1345,146 @@ namespace cleaver
     {
       Tet* t = this->tets.at(f);
 
-      size_t v1 = t->verts[0]->tm_v_index;
-      size_t v2 = t->verts[1]->tm_v_index;
-      size_t v3 = t->verts[2]->tm_v_index;
-      size_t v4 = t->verts[3]->tm_v_index;
+      Vertex *v1 = t->verts[0];
+      Vertex *v2 = t->verts[1];
+      Vertex *v3 = t->verts[2];
+      Vertex *v4 = t->verts[3];
+      unsigned int i1 = vert_maps[t->mat_label].find(v1->pos())->second;
+      unsigned int i2 = vert_maps[t->mat_label].find(v2->pos())->second;
+      unsigned int i3 = vert_maps[t->mat_label].find(v3->pos())->second;
+      unsigned int i4 = vert_maps[t->mat_label].find(v4->pos())->second;
 
-      *output.at(t->mat_label) << 3 << " " << v1 <<  " " << v2 << " " << v3 << "\n";
-      *output.at(t->mat_label) << 3 << " " << v2 <<  " " << v3 << " " << v4 << "\n";
-      *output.at(t->mat_label) << 3 << " " << v3 <<  " " << v4 << " " << v1 << "\n";
-      *output.at(t->mat_label) << 3 << " " << v4 <<  " " << v1 << " " << v2 << "\n";
+      *output.at(t->mat_label) << 3 << " " << i1 <<  " " << i2 << " " << i3 << "\n";
+      *output.at(t->mat_label) << 3 << " " << i2 <<  " " << i3 << " " << i4 << "\n";
+      *output.at(t->mat_label) << 3 << " " << i3 <<  " " << i4 << " " << i1 << "\n";
+      *output.at(t->mat_label) << 3 << " " << i4 <<  " " << i1 << " " << i2 << "\n";
     }
     //CLOSE
     for(size_t i=0; i < numTetsPerMat.size(); i++) {
       (*output.at(i)).close();
       delete output.at(i);
     }
+  }
+
+  //==================================================================
+  //
+  //==================================================================
+  void TetMesh::writeVtkUnstructuredGrid(const std::string &filename, bool verbose)
+  {
+    std::string filepath = filename + ".vtk";
+    std::ofstream output(filepath.c_str(), std::ios::out | std::ios::binary);
+    if(verbose)
+      std::cout << "Writing mesh vtk file: " << filepath << std::endl;
+    //-----------------------------------
+    //         Create Pruned Vertex List
+    //-----------------------------------
+    VertMap vert_map;
+    std::vector<vec3> pruned_verts;
+    unsigned int pruned_pos = 0;
+    for(size_t t=0; t < this->tets.size(); t++) {
+      Tet* tet = this->tets[t];
+
+      Vertex *v1 = tet->verts[0];
+      Vertex *v2 = tet->verts[1];
+      Vertex *v3 = tet->verts[2];
+      Vertex *v4 = tet->verts[3];
+
+      vec3 p1 = v1->pos();
+      vec3 p2 = v2->pos();
+      vec3 p3 = v3->pos();
+      vec3 p4 = v4->pos();
+
+      if (!vert_map.count(p1)) {
+        vert_map.insert(std::pair<vec3,unsigned int>(p1,pruned_pos));
+        pruned_pos++;
+        pruned_verts.push_back(p1);
+      }
+      if (!vert_map.count(p2)) {
+        vert_map.insert(std::pair<vec3,unsigned int>(p2,pruned_pos));
+        pruned_pos++;
+        pruned_verts.push_back(p2);
+      }
+      if (!vert_map.count(p3)) {
+        vert_map.insert(std::pair<vec3,unsigned int>(p3,pruned_pos));
+        pruned_pos++;
+        pruned_verts.push_back(p3);
+      }
+      if (!vert_map.count(p4)) {
+        vert_map.insert(std::pair<vec3,unsigned int>(p4,pruned_pos));
+        pruned_pos++;
+        pruned_verts.push_back(p4);
+      }
+    }
+
+    //-----------------------------------
+    //         Write Header
+    //-----------------------------------
+    output << "# vtk DataFile Version 2.0\n";
+    output << filepath << " Tet Mesh\n";
+    output << "ASCII\n";
+    output << "DATASET UNSTRUCTURED_GRID\n";
+    output << "POINTS " << pruned_verts.size() << " float\n";
+    //-----------------------------------
+    //         Write Vertex List
+    //-----------------------------------
+    for(size_t i=0; i < pruned_verts.size(); i++)
+    {
+      output << pruned_verts[i].x << " "
+        << pruned_verts[i].y << " "
+        << pruned_verts[i].z << std::endl;
+    }
+
+    //-----------------------------------
+    //         Write Cell/Face List
+    //-----------------------------------
+    // \todo make writing background optional
+    output << "CELLS " << this->tets.size() << " " << this->tets.size()*5 << "\n";
+    for(size_t f=0; f < this->tets.size(); f++)
+    {
+      Tet* t = this->tets.at(f);
+
+      Vertex* v1 = t->verts[0];
+      Vertex* v2 = t->verts[1];
+      Vertex* v3 = t->verts[2];
+      Vertex* v4 = t->verts[3];
+      unsigned int i1 = vert_map.find(v1->pos())->second;
+      unsigned int i2 = vert_map.find(v2->pos())->second;
+      unsigned int i3 = vert_map.find(v3->pos())->second;
+      unsigned int i4 = vert_map.find(v4->pos())->second;
+      output << 4 << " " << i1 <<  " " << i2 << " " << i3 << " " << i4 << "\n";
+    }
+
+    output << "CELL_TYPES " << this->tets.size() << "\n";
+    for(size_t f=0; f < this->tets.size(); f++)
+    {
+      Tet* t = this->tets.at(f);
+      output << 10 << "\n";
+    }
+
+    //-----------------------------------
+    //         Write Labels
+    //-----------------------------------
+    output << "CELL_DATA " << this->tets.size() << "\n";
+    output << "SCALARS labels int 1\n";
+    output << "LOOKUP_TABLE default\n";
+    for(size_t f=0; f < this->tets.size(); f++)
+    {
+      Tet* t = this->tets.at(f);
+      output << (int)t->mat_label << "\n";
+    }
+
+    /* \todo make optional
+    output << "POINT_DATA " << this->verts.size() << "\n";
+    output << "SCALARS labels int 1\n";
+    output << "LOOKUP_TABLE default\n";
+    for(size_t f=0; f < this->verts.size(); f++)
+    {
+      Vertex* v = this->verts.at(f);
+      output << (int)v->label << "\n";
+    }*/
+
+    //CLOSE
+    output.close();
   }
 
   //==================================================================
@@ -1813,22 +1911,6 @@ namespace cleaver
     if (verbose) status.done();
   }
 
-  //===================================================
-  //  tet_volume()
-  //
-  // Helper function to compute the oriented volume
-  // of a tet, identified by its 4 vertices.
-  //===================================================
-  double Tet::volume() const
-  {
-    vec3 a = verts[0]->pos();
-    vec3 b = verts[1]->pos();
-    vec3 c = verts[2]->pos();
-    vec3 d = verts[3]->pos();
-
-    return dot(a - d, cross(b-d, c-d)) / 6.0;
-  }
-
   //===================================================================================
   // - createTet()
   //
@@ -1841,9 +1923,9 @@ namespace cleaver
   {
     // debugging check
     if(v1 == v2 || v1 == v3 || v1 == v4 || v2 == v3 || v2 == v4 || v3 == v4)
-      std::cout << "PROBLEM! Creating NULL Tet" << std::endl;
+      std::cout << "PROBLEM! Creating nullptr Tet" << std::endl;
     else if(v1 == 0 || v2 == 0 || v3 == 0 || v4 == 0)
-      std::cout << "PROBLEM! Creating NULL Tet" << std::endl;
+      std::cout << "PROBLEM! Creating nullptr Tet" << std::endl;
 
     //----------------------------
     //  Create Tet + Add to List
@@ -1862,7 +1944,7 @@ namespace cleaver
        v4->pos().x <= bounds.maxCorner().x && v4->pos().x >= bounds.minCorner().x &&
        v4->pos().y <= bounds.maxCorner().y && v4->pos().y >= bounds.minCorner().y &&
        v4->pos().z <= bounds.maxCorner().z && v4->pos().z >= bounds.minCorner().z))
-       return NULL;
+       return nullptr;
      */
     Tet *tet = new Tet(v1, v2, v3, v4, material);
     tet->tm_index = tets.size();
@@ -1945,7 +2027,7 @@ namespace cleaver
 
         // then free the tet
         delete tet;
-        tets[t] = NULL;
+        tets[t] = nullptr;
       }
 
 
@@ -2079,7 +2161,7 @@ namespace cleaver
       for(unsigned int f=0; f < he->halfFaces.size(); f++){
 
         // if no mate (border) always add
-        if(he->halfFaces[f]->mate == NULL){
+        if(he->halfFaces[f]->mate == nullptr){
           facelist.push_back(he->halfFaces[f]);
         }
         // otherwise only add face if positively oriented (to avoid mate duplicates)
@@ -2116,7 +2198,7 @@ namespace cleaver
     // now look at mate edge, add any incident faces that don't have face-mates
     HalfEdge *me = e->mate;
     for(unsigned int f=0; f < me->halfFaces.size(); f++){
-      if(me->halfFaces[f]->mate == NULL){
+      if(me->halfFaces[f]->mate == nullptr){
         facelist.push_back(me->halfFaces[f]);
       }
     }
@@ -2139,7 +2221,7 @@ namespace cleaver
     // now look at mate edge, add any incident faces that don't have face-mates
     HalfEdge *me = e->mate;
     for(unsigned int f=0; f < me->halfFaces.size(); f++){
-      if(me->halfFaces[f]->mate == NULL){
+      if(me->halfFaces[f]->mate == nullptr){
         unsigned int index = (me->halfFaces[f] - &this->halfFaces[0]) / 4;
         tetlist.push_back(tets[index]);
       }
@@ -2263,7 +2345,7 @@ namespace cleaver
       if(tets.size() > 1)
         return tets[1];
       else
-        return NULL;
+        return nullptr;
     }
     else
       return tets[0];
@@ -2342,9 +2424,9 @@ namespace cleaver
     {
     for(size_t j=0; j < tets[t]->verts[v]->tets.size(); j++)
     {
-    if(tets[t]->verts[v]->tets[j] == NULL)
+    if(tets[t]->verts[v]->tets[j] == nullptr)
     {
-    std::cout << "NULL TET stored in VERTS!!" << std::endl;
+    std::cout << "nullptr TET stored in VERTS!!" << std::endl;
     std::cout << " BAD MESH " << std::endl;
     }
     }
@@ -2374,7 +2456,7 @@ namespace cleaver
       // look for a tet sharing three verts opposite vert[j]
       for (int j=0; j < 4; j++)
       {
-        if (this->tets[i]->tets[j] == NULL)
+        if (this->tets[i]->tets[j] == nullptr)
         {
           // grab three vertices to compare against
           Vertex *v0 = this->tets[i]->verts[(j+1)%4];
@@ -2424,17 +2506,8 @@ namespace cleaver
         }
       }
     }
-
-    // free existing structure
-
-    if(halfFaces){
-      //        std::cout << "freeing existing halfFaces to recompute them" << std::endl;
-      delete [] halfFaces;
-      halfFaces = NULL;
-    }
-
     // allocate sufficient space
-    halfFaces = new HalfFace[4*tets.size()];
+    halfFaces = std::vector<HalfFace>(4*tets.size());
     halfEdges.clear();
 
     std::queue<Tet*> tq;
@@ -2476,11 +2549,11 @@ namespace cleaver
           half_face->halfEdges[e] = half_edge;
 
           // check if this edge has been assigned yet
-          if(half_edge->vertex == NULL){
+          if(half_edge->vertex == nullptr){
             half_edge->vertex = v2;
             v1->halfEdges.push_back(half_edge);
           }
-          if(pair_edge->vertex == NULL){
+          if(pair_edge->vertex == nullptr){
             pair_edge->vertex = v1;
             v2->halfEdges.push_back(pair_edge);
           }
@@ -2529,21 +2602,12 @@ namespace cleaver
       // get pointer to half face
       HalfFace *half_face = &halfFaces[f];
 
-      if(half_face->halfEdges[0] == NULL)
+      if(half_face->halfEdges[0] == nullptr)
       {
         std::cerr << "Found disconnected face! f=" << f << std::endl;
 
       }
     }
-  }
-
-  vec3 HalfFace::normal() const
-  {
-    vec3 v1 = this->halfEdges[0]->vertex->pos();
-    vec3 v2 = this->halfEdges[1]->vertex->pos();
-    vec3 v3 = this->halfEdges[2]->vertex->pos();
-
-    return normalize(cross(v2 - v1, v3 - v1));
   }
 
   std::string GetLineSkipComments(std::ifstream &stream)
@@ -2664,9 +2728,8 @@ namespace cleaver
       parser.clear();
       parser >> tmp >> tetidx[0] >> tetidx[1] >> tetidx[2] >> tetidx[3];
       //bring the indexing down 1 to be zero based?
-      if (i == 0 && (tetidx[0] == 0 || tetidx[1] == 0 ||
-            tetidx[2] == 0 || tetidx[3] == 0)) {
-        zero_based = true;
+      if (i == 0) {
+        zero_based = tmp == 0;
       }
       material = 0;
       if (attrCount > 0) {
@@ -2758,7 +2821,7 @@ namespace cleaver
         {
           HalfEdge *edge = incEdges[e];
 
-          if(edge->cut && edge->cut->order() == 1)
+          if(edge->cut && edge->cut->order() == Order::CUT)
           {
             safe = false;
             break;

@@ -1,14 +1,19 @@
 #include "FieldDataWidget.h"
 #include "ui_FieldDataWidget.h"
 #include <sstream>
-#include "MainWindow.h"
 #include <Cleaver/ScalarField.h>
 #include <Cleaver/BoundingBox.h>
+#include <NRRDTools.h>
+#include <QMouseEvent>
+#include <QMenu>
+#include <QMimeData>
+#include <QDrag>
+#include <QDialog>
 
 FieldDataWidget::FieldDataWidget(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::FieldDataWidget),
-    field(NULL)
+    field(nullptr)
 {
     ui->setupUi(this);
 
@@ -39,7 +44,6 @@ FieldDataWidget::FieldDataWidget(QWidget *parent) :
     selected = false;
     open = false;
 }
-
 
 FieldDataWidget::FieldDataWidget(cleaver::AbstractScalarField *field, QWidget *parent) :
     QWidget(parent),
@@ -166,8 +170,6 @@ FieldDataWidget::~FieldDataWidget()
     delete ui;
 }
 
-
-
 void FieldDataWidget::showInfoClicked(bool checked)
 {
     open = checked;
@@ -188,14 +190,12 @@ void FieldDataWidget::setSelected(bool value)
 void FieldDataWidget::setDataName(const QString &name)
 {
     field->setName(std::string(name.toLatin1()));
-    MainWindow::dataManager()->update();
 }
 
 void FieldDataWidget::setTitle(const std::string &title)
 {
     ui->dataLabel->setText(title.c_str());
 }
-
 
 void FieldDataWidget::updateStyleSheet()
 {
@@ -228,29 +228,18 @@ void FieldDataWidget::updateStyleSheet()
 
     }
 }
-
-
 //============================================
 //  Event Handlers
 //============================================
-
 void FieldDataWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
     if(!event->modifiers().testFlag(Qt::ControlModifier))
         ui->detailViewButton->click();
 }
 
-
 void FieldDataWidget::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton)
-    {
-        if(event->modifiers().testFlag(Qt::ControlModifier))
-            MainWindow::dataManager()->toggleAddSelection(reinterpret_cast<ulong>(field));
-        else
-            MainWindow::dataManager()->setSelection(reinterpret_cast<ulong>(field));
-
-
+    if (event->button() == Qt::LeftButton) {
         updateStyleSheet();
     }
 
@@ -258,7 +247,6 @@ void FieldDataWidget::mousePressEvent(QMouseEvent *event)
     {
         QMenu contextMenu;
         QAction *exportAction = contextMenu.addAction("Export Field");
-//        QAction *deleteAction = contextMenu.addAction("Delete Field");
         QAction *renameAction = contextMenu.addAction("Rename Field");
 
         cleaver::FloatField *floatField = dynamic_cast<cleaver::FloatField*>(field);
@@ -268,10 +256,6 @@ void FieldDataWidget::mousePressEvent(QMouseEvent *event)
         QAction *selectedItem = contextMenu.exec(mapToGlobal(event->pos()));
         if(selectedItem)
         {
-//            if(selectedItem == deleteAction){
-//                MainWindow::dataManager()->removeField(field);
-//            }
-//            else
             if(selectedItem == renameAction){
 
                 QDialog dialog;
@@ -290,17 +274,13 @@ void FieldDataWidget::mousePressEvent(QMouseEvent *event)
                 if(dialog.exec() == QDialog::Accepted){
                     field->setName(std::string(lineEdit.text().toLatin1()));
                     ui->dataLabel->setText(lineEdit.text());
-                    MainWindow::dataManager()->update();
                 }                
             }
             else if(selectedItem == exportAction){
-
                 cleaver::FloatField *floatField = dynamic_cast<cleaver::FloatField*>(field);
-                if(!floatField)
-                {
-                    // give error
+                if(floatField) {
+                  emit exportField(reinterpret_cast<void*>(floatField));
                 }
-                MainWindow::instance()->exportField(floatField);
             }
         }
     }

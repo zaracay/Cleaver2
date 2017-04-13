@@ -42,38 +42,66 @@ PROJECT(CLEAVER2)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 OPTION(CMAKE_BUILD_TYPE Release)
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
-if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-endif()
+
+SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin CACHE INTERNAL
+    "Single output directory for building all executables.")
+
+IF(NOT WIN32)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC")
+ELSE()
+  ADD_DEFINITIONS(-D_CRT_SECURE_NO_WARNINGS)
+ENDIF()
 
 # Build Cleaver Library (no dependencies)
 ADD_SUBDIRECTORY(lib/cleaver)
-ADD_SUBDIRECTORY(lib/synthetic)
-ADD_SUBDIRECTORY(lib/boost)
-ADD_SUBDIRECTORY(lib/teem)
-ADD_SUBDIRECTORY(lib/nrrd2cleaver)
 
-include_directories(lib/boost)
+# TODO(jonbronson): Change to not use ITK by default once teem is added.
+OPTION(USE_ITK "Use ITK instead of Teem for nrrd files." ON)
+IF(NOT USE_ITK)
+  ADD_SUBDIRECTORY(lib/teem)
+ENDIF()
 
-ADD_SUBDIRECTORY(cli/sizingfieldcreator)
-include(lib/Segmentation/FindSCIRun4.cmake)
-ADD_SUBDIRECTORY(cli/mesher)
-ADD_SUBDIRECTORY(gui)
+OPTION(BUILD_CLI "Build Cleaver CLI App (REQUIRES TEEM)" OFF)
+OPTION(BUILD_GUI "Build Cleaver GUI App (REQUIRES TEEM)" OFF)
 
-########################################################################
+OPTION(BUILD_EXTRAS "Example use cases, tools" OFF)
+IF(BUILD_EXTRAS)
+  ADD_SUBDIRECTORY(examples)
+ENDIF()
+
+IF(BUILD_CLI OR BUILD_GUI)
+
+  ADD_SUBDIRECTORY(lib/boost)
+  INCLUDE_DIRECTORIES(lib/boost)
+  ADD_SUBDIRECTORY(lib/nrrd2cleaver)
+
+  IF(BUILD_CLI)
+    ADD_SUBDIRECTORY(cli/mesher)
+  ENDIF()
+
+  IF(BUILD_EXTRAS)
+      ADD_SUBDIRECTORY(lib/synthetic)
+      ADD_SUBDIRECTORY(cli/sizingfieldcreator)
+  ENDIF()
+
+  IF(BUILD_GUI)
+    ADD_SUBDIRECTORY(gui)
+  ENDIF()
+
+ENDIF()
+
 # All of the testing and test framework options
 INCLUDE(CTest)
-if (BUILD_TESTING)
+IF(BUILD_TESTING)
   ENABLE_TESTING()
   # Use gcov for code coverage (useful for seeing test completeness)
   OPTION(USE_GCOV "Enable code coverage for GNUCXX Platforms" OFF)
-  if (USE_GCOV)
-    if(CMAKE_COMPILER_IS_GNUCXX)
+  IF(USE_GCOV)
+    IF(CMAKE_COMPILER_IS_GNUCXX)
       INCLUDE(${PROJECT_SOURCE_DIR}/CodeCoverage.cmake)
       SET(CMAKE_CXX_FLAGS "-g -O0 -fprofile-arcs -ftest-coverage")
       SET(CMAKE_C_FLAGS "-g -O0 -fprofile-arcs -ftest-coverage")
-    endif()
-  endif()
-  ADD_SUBDIRECTORY(lib/gtest)
+    ENDIF()
+  ENDIF()
   ADD_SUBDIRECTORY(test)
-endif()
+ENDIF()

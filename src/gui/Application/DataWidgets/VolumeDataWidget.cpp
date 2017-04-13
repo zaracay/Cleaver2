@@ -4,12 +4,13 @@
 #include <QMouseEvent>
 #include <QMessageBox>
 #include <QMenu>
-#include <MainWindow.h>
+#include <QMimeData>
+#include <QDrag>
 
 VolumeDataWidget::VolumeDataWidget(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::VolumeDataWidget),
-    volume(NULL)
+    volume(nullptr)
 {
     ui->setupUi(this);
 
@@ -19,10 +20,7 @@ VolumeDataWidget::VolumeDataWidget(QWidget *parent) :
 
     QObject::connect(this->ui->detailViewButton, SIGNAL(clicked(bool)),
             this, SLOT(showInfoClicked(bool)));
-
-    //QObject::connect(ui->dataLabel, SIGNAL(lo)
-
-
+    
     openStyle =
     "QWidget { background-color:rgb(177, 177, 177); \n"
     "          border: 1px solid black;\n             "
@@ -69,9 +67,8 @@ VolumeDataWidget::VolumeDataWidget(cleaver::Volume *volume, QWidget *parent) :
     //this->ui->materialsWidget->installEventFilter(this);
 
     connect(this->ui->detailViewButton, SIGNAL(clicked(bool)), this, SLOT(showInfoClicked(bool)));
-
-    connect(this->ui->sizingFieldWidget, SIGNAL(changeRequest(cleaver::AbstractScalarField*)), this, SLOT(replaceSizingField(cleaver::AbstractScalarField*)));
-    connect(this->ui->sizingFieldWidget, SIGNAL(removeRequest(cleaver::AbstractScalarField*)), this, SLOT(removeSizingField(cleaver::AbstractScalarField*)));
+    connect(this->ui->sizingFieldWidget, SIGNAL(removeRequest(cleaver::AbstractScalarField*)), 
+      this, SLOT(removeSizingField(cleaver::AbstractScalarField*)));
 
     //-------------------------------------------------//
     //            Construct The Styles                 //
@@ -183,7 +180,7 @@ VolumeDataWidget::VolumeDataWidget(cleaver::Volume *volume, QWidget *parent) :
     if(volume->getSizingField())
         ui->sizingFieldWidget->setField(volume->getSizingField());
     else
-        ui->sizingFieldWidget->setField(NULL);
+        ui->sizingFieldWidget->setField(nullptr);
 
     selected = false;
     open = false;
@@ -224,7 +221,7 @@ void VolumeDataWidget::updateMaterialsWidgets()
     // clear dummy widget
     if(ui->dummyMaterial){
         delete ui->dummyMaterial;
-        ui->dummyMaterial = NULL;
+        ui->dummyMaterial = nullptr;
     }
 
     MaterialMap tmp_material_map = this->materialMap;
@@ -233,7 +230,7 @@ void VolumeDataWidget::updateMaterialsWidgets()
     for(int m=0; m < volume->numberOfMaterials(); m++)
     {
         cleaver::AbstractScalarField *field = volume->getMaterial(m);
-        MiniFieldWidget *materialWidget = NULL;
+        MiniFieldWidget *materialWidget = nullptr;
 
         MaterialMap::iterator iter = tmp_material_map.find(reinterpret_cast<ulong>(field));
         if (iter != tmp_material_map.end())
@@ -251,23 +248,9 @@ void VolumeDataWidget::updateMaterialsWidgets()
 
             // create a material widget
             materialWidget = new MiniFieldWidget(field, this);
-            connect(materialWidget, SIGNAL(removeRequest(cleaver::AbstractScalarField*)), this, SLOT(removeMaterial(cleaver::AbstractScalarField*)));
-//            materialWidget->setStyleSheet(normalMaterialWidgetStyle.c_str());
-//            materialWidget->setLayout(new QHBoxLayout());
-//            materialWidget->layout()->setMargin(0);
-//            materialWidget->layout()->setContentsMargins(10, 0, 10, 0);
-//            materialWidget->layout()->setSpacing(0);
-//            materialWidget->setMinimumHeight(20);
-//            materialWidget->setMaximumHeight(20);
+            connect(materialWidget, SIGNAL(removeRequest(cleaver::AbstractScalarField*)), 
+              this, SLOT(removeMaterial(cleaver::AbstractScalarField*)));
 
-            // create label widget
-//            QLabel *labelWidget = new QLabel(materialWidget);
-//            labelWidget->setStyleSheet(materialLabelStyle.c_str());
-//            labelWidget->setText(volume->getMaterial(m)->name().c_str());
-//            labelWidget->setMinimumHeight(20);
-
-            // Put the widget in the layout
-            //materialWidget->layout()->addWidget(labelWidget);
             ui->materialsWidget->layout()->addWidget(materialWidget);
         }
 
@@ -296,18 +279,14 @@ void VolumeDataWidget::removeMaterial(cleaver::AbstractScalarField *field)
 {
     volume->removeMaterial(field);
     updateFields();
+    emit updateDataWidget();
 }
 
 void VolumeDataWidget::removeSizingField(cleaver::AbstractScalarField *field)
 {
-    volume->setSizingField(NULL);
+    volume->setSizingField(nullptr);
     updateFields();
-}
-
-void VolumeDataWidget::replaceSizingField(cleaver::AbstractScalarField *field)
-{
-    volume->setSizingField(field);
-    updateFields();
+    emit updateDataWidget();
 }
 
 void VolumeDataWidget::showInfoClicked(bool checked)
@@ -334,7 +313,6 @@ void VolumeDataWidget::setSelected(bool value)
 void VolumeDataWidget::setDataName(const QString &name)
 {
     volume->setName(std::string(name.toLatin1()));
-    MainWindow::dataManager()->update();
 }
 
 void VolumeDataWidget::setTitle(const std::string &title)
@@ -364,19 +342,6 @@ void VolumeDataWidget::updateStyleSheet()
             ui->infoWidget->setStyleSheet(selectedInfoStyle.c_str());
 
 
-
-            // update material widgets
-            /*
-            QObjectList children = ui->materialsWidget->children();
-            for(size_t i=0; i < children.size(); i++)
-            {
-                MiniFieldWidget *materialWidget = qobject_cast<MiniFieldWidget*>(children[i]);
-                if(materialWidget)
-                    //materialWidget->setField(materialWidget->field());
-                    materialWidget->setStyleSheet(selectedMaterialWidgetStyle.c_str());
-            }
-            */
-
         }
         else
         {
@@ -386,16 +351,6 @@ void VolumeDataWidget::updateStyleSheet()
             // update info
             ui->infoWidget->setStyleSheet(normalInfoStyle.c_str());
 
-            // update material widgets
-            /*
-            QObjectList children = ui->materialsWidget->children();
-            for(size_t i=0; i < children.size(); i++)
-            {
-                QWidget *materialWidget = qobject_cast<QWidget*>(children[i]);
-                if(materialWidget)
-                    materialWidget->setStyleSheet(normalMaterialWidgetStyle.c_str());
-            }
-            */
         }
 
     }
@@ -427,11 +382,6 @@ void VolumeDataWidget::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton)
     {
-        if(event->modifiers().testFlag(Qt::ControlModifier))
-            MainWindow::dataManager()->toggleAddSelection(reinterpret_cast<ulong>(volume));
-        else
-            MainWindow::dataManager()->setSelection(reinterpret_cast<ulong>(volume));
-
 
         updateStyleSheet();
     }
@@ -439,16 +389,11 @@ void VolumeDataWidget::mousePressEvent(QMouseEvent *event)
     else if(event->button() == Qt::RightButton)
     {
         QMenu contextMenu;
-//        QAction *deleteAction = contextMenu.addAction("Delete Volume");
         QAction *renameAction = contextMenu.addAction("Rename Volume");
 
         QAction *selectedItem = contextMenu.exec(mapToGlobal(event->pos()));
         if(selectedItem)
         {
-//            if(selectedItem == deleteAction){
-//                MainWindow::dataManager()->removeVolume(volume);
-//            }
-//            else
             if(selectedItem == renameAction){
 
                 QDialog dialog;
@@ -466,7 +411,6 @@ void VolumeDataWidget::mousePressEvent(QMouseEvent *event)
 
                 if(dialog.exec() == QDialog::Accepted){
                     ui->dataLabel->setText(lineEdit.text());
-                    MainWindow::dataManager()->update();
                 }
             }
         }
@@ -546,8 +490,6 @@ void VolumeDataWidget::dropEvent(QDropEvent *event)
         }
 
         volume->addMaterial(field);
-        MainWindow::dataManager()->update();
-
 
         event->setDropAction(Qt::MoveAction);
         event->accept();

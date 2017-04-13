@@ -1,8 +1,8 @@
 #include "SizingFieldWidget.h"
 #include "ui_SizingFieldWidget.h"
-#include "MainWindow.h"
 #include <QFileDialog>
-#include <QProgressDialog>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -11,191 +11,106 @@
 #include <Cleaver/InverseField.h>
 #include <Cleaver/ScaledField.h>
 #include <Cleaver/SizingFieldCreator.h>
-#include <nrrd2cleaver/nrrd2cleaver.h>
-#include <Cleaver/Timer.h>
+#include <NRRDTools.h>
+#include <stdexcept>
 
-SizingFieldWidget::SizingFieldWidget(QWidget *parent) :
-    QDockWidget(parent),
-    ui(new Ui::SizingFieldWidget), volume(NULL)
-{
-    ui->setupUi(this);
-    setAcceptDrops(true);
-
-    //ui->lipschitzWidget.layout()->setMargin(0);
-    //ui->lipschitzWidget.layout()->setSpacing(4);
-    ui->lipschitzWidget->layout()->setMargin(0);
-    ui->lipschitzWidget->layout()->setSpacing(4);
-    ui->dockWidgetContents->layout()->setMargin(4);
-    ui->dockWidgetContents->layout()->setSpacing(1);
-    ui->computeWidget->layout()->setMargin(0);
-    ui->computeWidget->layout()->setSpacing(0);
-    //ui->dockWidgetContents->setStyleSheet(QString("font-size: 8;"));
-    //ui->lipschitzLabel->
-    //ui->dockWidgetContents->layout()->setAlignment(ui->dockWidgetContents->layout(), Qt::AlignHCenter);
-
-    QObject::connect(MainWindow::dataManager(), SIGNAL(volumeListChanged()), this, SLOT(updateVolumeList()));
-    QObject::connect(ui->volumeBox, SIGNAL(currentIndexChanged(int)), this, SLOT(volumeSelected(int)));
+SizingFieldWidget::SizingFieldWidget(cleaver::CleaverMesher& mesher, 
+  QWidget *parent) :
+  QDockWidget(parent),
+  mesher_(mesher),
+  ui(new Ui::SizingFieldWidget) {
+  ui->setupUi(this);
+  setAcceptDrops(true);
+  ui->lipschitzWidget->layout()->setMargin(0);
+  ui->lipschitzWidget->layout()->setSpacing(4);
+  ui->dockWidgetContents->layout()->setMargin(4);
+  ui->dockWidgetContents->layout()->setSpacing(1);
+  ui->computeWidget->layout()->setMargin(0);
+  ui->computeWidget->layout()->setSpacing(0);
 }
 
-SizingFieldWidget::~SizingFieldWidget()
-{
-    delete ui;
+SizingFieldWidget::~SizingFieldWidget(){
+  delete ui;
+}
+
+void SizingFieldWidget::setCreateButtonEnabled(bool b) {
+  this->ui->computeSizingFieldButton->setEnabled(b);
+}
+
+void SizingFieldWidget::loadSizingField() {
+  QString fileName = QFileDialog::getOpenFileName(this, tr("Select Sizing Field"), 
+    QDir::currentPath(), tr("NRRD (*.nrrd)"));
+
+  if (!fileName.isEmpty()) {
+    std::vector<cleaver::AbstractScalarField*> sizingField =
+      NRRDTools::loadNRRDFiles({ {fileName.toStdString()} });
+    this->mesher_.getVolume()->setSizingField(sizingField[0]);
+    emit sizingFieldDone();
+  }
+}
+
+void SizingFieldWidget::computeSizingField() {
+  float scaling = ui->scaleFactor->value();
+  float factor = ui->factorSpinBox->value();
+  float speed = 1.0 / ui->lipschitzSpinBox->value();
+  int padding = ui->paddingSpinBox->value();
+  bool adaptiveSurface = QString::compare(
+    ui->surfaceComboBox->currentText(),
+    QString("constant"), Qt::CaseInsensitive) == 0 ? true : false;
+  SizingFieldThread *workerThread = new SizingFieldThread(this->mesher_, this,
+    scaling, factor, speed, padding, adaptiveSurface);
+  connect(workerThread, SIGNAL(sizingFieldDone()), this, SLOT(handleSizingFieldDone()));
+  connect(workerThread, SIGNAL(message(std::string)), this, SLOT(handleMessage(std::string)));
+  connect(workerThread, SIGNAL(errorMessage(std::string)), this, SLOT(handleErrorMessage(std::string)));
+  connect(workerThread, SIGNAL(progress(int)), this, SLOT(handleProgress(int)));
+  connect(workerThread, SIGNAL(finished()), workerThread, SLOT(deleteLater()));
+  workerThread->start();
 }
 
 
-
-//========================
-//     Public Slots
-//========================
-
-
-void SizingFieldWidget::focus(QMdiSubWindow* subwindow)
-{
-    // TODO: This method shouldn't exist, but it exists
-    // as a hack to get the current mesher.
-
-    if (subwindow != NULL){
-
-        MeshWindow *window = qobject_cast<MeshWindow *>(subwindow->widget());
-
-        if(window != NULL)
-        {
-            //std::cout << "DataLoaderWidget has Volume from Window" << std::endl;
-            //ui->loadSizingFieldButton->setEnabled(true);
-            //ui->computeSizingFieldButton->setEnabled(true);
-            this->volume = window->volume();
-            this->mesher = window->mesher();
-        }
-        //else
-        //{
-        //    //ui->loadSizingFieldButton->setEnabled(false);
-        //    ui->computeSizingFieldButton->setEnabled(false);
-        //}
-    }
-
-}
-
-void SizingFieldWidget::loadIndicatorFunctions()
-{
-    QStringList fileNames = QFileDialog::getOpenFileNames(this, tr("Select Indicator Functions"), QDir::currentPath(), tr("NRRD (*.nrrd)"));
-
-    if(!fileNames.isEmpty())
-    {
-        std::vector<std::string> inputs;
-
-        for(int i=0; i < fileNames.size(); i++){
-            inputs.push_back(fileNames[i].toStdString());
-        }
-
-        std::vector<cleaver::AbstractScalarField*> fields = loadNRRDFiles(inputs, true);
-        if(fields.empty()){
-            std::cerr << "Failed to load image data." << std::endl;
-            return;
-        }
-        else if(fields.size() == 1){
-            fields.push_back(new cleaver::InverseScalarField(fields[0]));
-        }
-
-        this->volume = new cleaver::Volume(fields);
-        static int v = 0;
-        std::string volumeName = std::string("Volume");
-        if(v > 0){
-            volumeName += std::string(" ") + QString::number(v).toStdString();
-        }
-        volume->setName(volumeName);
+//=========================================
+// - Handlers
+//=========================================
 
 
-        //Cleaver::ConstantField *sizingField = new Cleaver::ConstantField(4.0, volume->width(), volume->height(), volume->depth());
-        //volume->setSizingField(sizingField);
-        //volume->setSize(128,128,128);
+void SizingFieldWidget::handleSizingFieldDone() { emit sizingFieldDone(); }
 
-        MainWindow::instance()->createWindow(volume, QString(volumeName.c_str()));
+void SizingFieldWidget::handleMessage(std::string str) { emit message(str); }
 
-        //ui->loadSizingFieldButton->setEnabled(true);
-    }
-}
+void SizingFieldWidget::handleErrorMessage(std::string str) { emit errorMessage(str); }
 
-void SizingFieldWidget::loadSizingField()
-{
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Select Sizing Field"), QDir::currentPath(), tr("NRRD (*.nrrd)"));
+void SizingFieldWidget::handleProgress(int v) { emit progress(v); }
 
-    if(!fileName.isEmpty())
-    {
-        cleaver::AbstractScalarField* sizingField = loadNRRDFile(fileName.toStdString(), true);
-        this->volume->setSizingField(sizingField);
-    }
-}
+SizingFieldThread::SizingFieldThread(
+  cleaver::CleaverMesher& mesher, QObject * parent,
+  float scaling, float factor, float speed,
+  int padding, bool adapt) :
+  QThread(parent), mesher_(mesher), scaling_(scaling),
+  factor_(factor), speed_(speed), padding_(padding),
+  adapt_(adapt) { }
 
-void SizingFieldWidget::computeSizingField()
-{
-    float factor = ui->factorSpinBox->value();
-    float speed = 1.0 / ui->lipschitzSpinBox->value();
-    float scale = ui->scaleSpinBox->value();
-    int padding = ui->paddingSpinBox->value();
-    bool adaptiveSurface = QString::compare(ui->surfaceComboBox->currentText(), QString("constant"), Qt::CaseInsensitive) == 0 ? false : true;
-	
-	QProgressDialog status(QString("Computing Sizing Field..."),QString(),0,100, this);
-	status.show();
-	status.setWindowModality(Qt::WindowModal);
-    cleaver::Timer timer;
-    timer.start();
-	status.setValue(10);
-    QApplication::processEvents();
-    cleaver::AbstractScalarField *sizingField = cleaver::SizingFieldCreator::createSizingFieldFromVolume(this->volume, speed, scale, factor, padding, adaptiveSurface, true);
-    timer.stop();
-	status.setValue(50);
-    QApplication::processEvents();
-    std::string sizingFieldName = volume->name() + "-computed-sizing-field";
+SizingFieldThread::~SizingFieldThread() {}
+
+void SizingFieldThread::run() {
+  emit message("Computing Sizing Field...");
+  emit progress(5);
+  try {
+    cleaver::AbstractScalarField *sizingField =
+      cleaver::SizingFieldCreator::createSizingFieldFromVolume(
+        this->mesher_.getVolume(), this->speed_, 
+        this->scaling_, this->factor_,
+        this->padding_, this->adapt_, true);
+    this->mesher_.getVolume()->setSizingField(sizingField);
+    emit progress(50);
+    std::string sizingFieldName =
+      this->mesher_.getVolume()->name() + "-computed-sizing-field";
     sizingField->setName(sizingFieldName);
-    this->volume->setSizingField(sizingField);
-    this->mesher->setSizingFieldTime(timer.time());
-
-    // Add new sizing field to data manager
-    MainWindow::dataManager()->addField(sizingField);
-	status.setValue(100);
-}
-
-void SizingFieldWidget::updateVolumeList()
-{
-    ui->volumeBox->clear();
-
-    std::vector<cleaver::Volume*> volumes = MainWindow::dataManager()->volumes();
-
-    for(size_t i=0; i < volumes.size(); i++)
-    {
-        ui->volumeBox->addItem(volumes[i]->name().c_str());
-    }
-}
-
-void SizingFieldWidget::volumeSelected(int index)
-{
-    if(index < 0){
-        this->volume = NULL;
-        ui->computeSizingFieldButton->setEnabled(false);
-    }
-    else{
-        this->volume = MainWindow::dataManager()->volumes()[index];
-        ui->computeSizingFieldButton->setEnabled(true);
-    }
-}
-
-void SizingFieldWidget::dragEnterEvent(QDragEnterEvent *event)
-{
-  //  if (event->mimeData()->hasFormat("text/plain"))
-        event->acceptProposedAction();
-}
-
-void SizingFieldWidget::dragLeaveEvent(QDragLeaveEvent *event)
-{
-//    if (event->mimeData()->hasFormat("text/plain"))
-    //event->
-}
-
-void SizingFieldWidget::dropEvent(QDropEvent *event)
-{
-//    textBrowser->setPlainText(event->mimeData()->text());
-//         mimeTypeCombo->clear();
-//         mimeTypeCombo->addItems(event->mimeData()->formats());
-
-    event->acceptProposedAction();
-}
+  } catch (std::exception e) {
+    emit errorMessage(e.what());
+  } catch (...) {
+    emit errorMessage("There was a problem creating the sizing field!");
+  }
+  emit message("Successfully computed Sizing Field.");
+  emit progress(100);
+  emit sizingFieldDone();
+} 

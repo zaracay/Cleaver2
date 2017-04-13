@@ -43,7 +43,7 @@
 #include <cstdio>
 #include <fstream>
 #include <cmath>
-#define _FIELDS " --material_fields "
+#define _FIELDS " --input_files "
 #define _NAME   " --output_name "
 #define _PATH   " --output_path "
 #define _CLI    "cleaver-cli "
@@ -53,25 +53,21 @@
 #define RMDIR_CMMD " rmdir /s /q "
 #define CAT_CMMD " type "
 #define MV_CMMD " move "
-#elif LINUX
-#define RM_CMMD " rm "
-#define RMDIR_CMMD " rm -rf "
-#define CAT_CMMD " cat "
-#define MV_CMMD " mv "
-#elif DARWIN
+#else
 #define RM_CMMD " rm "
 #define RMDIR_CMMD " rm -rf "
 #define CAT_CMMD " cat "
 #define MV_CMMD " mv "
 #endif
-extern std::string diff; 
-extern std::string data_dir; 
-extern std::string command; 
-extern std::string name; 
-extern std::string path; 
-extern std::string input; 
-extern std::string seg_input; 
-extern std::string files[num_files]; 
+extern std::string diff;
+extern std::string data_dir;
+extern std::string command;
+extern std::string name;
+extern std::string path;
+extern std::string input;
+extern std::string scirun;
+extern std::string seg_input;
+extern std::string files[num_files];
 
 void system_execute(const std::string cmmd, const std::string args);
 void compareEleFiles(const std::string a, const std::string b);

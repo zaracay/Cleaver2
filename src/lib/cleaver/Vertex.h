@@ -44,30 +44,37 @@
 #include <vector>
 #include <cstring>
 #include "vec3.h"
+#include "Geometry.h"
 
 namespace cleaver
 {
+
+enum class Order : std::int8_t {
+    VERT = 0,
+    CUT  = 1,
+    TRIP = 2,
+    QUAD = 3
+};
 
 class OTCell;
 class HalfEdge;
 class HalfFace;
 class Face;
 class Tet;
-class Geometry{};
 
 class Vertex : public Geometry{
 
 public:
-    Vertex(int materials) : parent(NULL), conformedVertex(NULL), conformedEdge(NULL), conformedFace(NULL),
+    Vertex(int materials) : parent(nullptr), conformedVertex(nullptr), conformedEdge(nullptr), conformedFace(nullptr),
         isExterior(false), violating(false), warped(false), tm_v_index(-1), lbls(new bool[materials+1]), dual(false),
-        m_order(0), m_pos(vec3::zero), m_pos_next(vec3::zero)
+        m_order(Order::VERT), m_pos(vec3::zero), m_pos_next(vec3::zero)
     {
         // increases lbls by 1 to account for background feb 20
         memset(lbls, 0, (materials+1)*sizeof(bool));
     }
-    Vertex() : parent(NULL), conformedVertex(NULL), conformedEdge(NULL), conformedFace(NULL),
+    Vertex() : parent(nullptr), conformedVertex(nullptr), conformedEdge(nullptr), conformedFace(nullptr),
         isExterior(false), violating(false), warped(false), tm_v_index(-1), lbls(0), dual(false),
-        m_order(0), m_pos(vec3::zero),m_pos_next(vec3::zero){ }
+        m_order(Order::VERT), m_pos(vec3::zero),m_pos_next(vec3::zero){ }
     ~Vertex();
 
     inline vec3& pos(){
@@ -82,14 +89,14 @@ public:
             ptr = ptr->parent;
         return ptr->m_pos_next;
     }
-    inline int& order(){
+    inline Order& order(){
         Vertex *ptr = this;
         while(ptr->parent)
             ptr = ptr->parent;
         return ptr->m_order;
     }
 
-    const int original_order(){
+    const Order original_order(){
         return m_order;
     }
 
@@ -124,7 +131,7 @@ public:
     bool phantom;
 
 private:
-    int m_order;        // vertex order
+    Order m_order;      // vertex order
     vec3 m_pos;         // current position
     vec3 m_pos_next;    // next position
 

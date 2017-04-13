@@ -6,6 +6,7 @@ SET( CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/")
 
 # Add library includes
 INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/include)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/lib/nrrd2cleaver)
 
 # Add Source Files
 FILE(GLOB srcs *.cpp )
@@ -13,4 +14,4 @@ FILE(GLOB hdrs *.h   )
 
 ADD_EXECUTABLE(sfcreator ${srcs} ${hdrs})
 
-TARGET_LINK_LIBRARIES(sfcreator cleaver nrrd2cleaver teem boostparts)
+TARGET_LINK_LIBRARIES(sfcreator cleaver nrrd2cleaver boostparts)

@@ -15,112 +15,99 @@
 #include "ToolWidgets/SizingFieldWidget.h"
 #include "DataWidgets/DataManagerWidget.h"
 #include <Cleaver/Cleaver.h>
+#include <Cleaver/CleaverMesher.h>
 #include "Data/DataManager.h"
+#include <QProgressBar>
 
 
 class MainWindow : public QMainWindow
 {
-    Q_OBJECT
+  Q_OBJECT
 public:
-    MainWindow(const QString &title);
-    ~MainWindow();
-    explicit MainWindow(QWidget *parent = 0);
+  MainWindow(const QString &title);
+  ~MainWindow();
+  explicit MainWindow(QWidget *parent = 0);
 
-    static MainWindow* instance(){ return m_instance; }
-    static DataManager* dataManager(){ return instance()->m_dataManager; }
-
-    void createWindow(cleaver::Volume *volume, const QString &title);
-    void createWindow(cleaver::TetMesh  *mesh, const QString &title);
-    MeshWindow* activeWindow() const;
-	void enableMeshedVolumeOptions();
-    
-signals:
-    
-public slots:
-
-    void importVolume();
-    void importSizingField();
-    void importMesh();
-    void exportField(cleaver::FloatField *field);
-    void exportMesh(cleaver::TetMesh *mesh = NULL);
-    void subWindowClosed();
-    void closeSubWindow();
-    void closeSubWindow(MeshWindow *win);
-    void closeAllSubWindows();
-    void focus(QMdiSubWindow*);
-    void about();
-
-    // camera slots
-    void resetCamera();
-    void saveCamera();
-    void loadCamera();
-
-
-    // edit functions
-    void removeExternalTets();
-    void removeLockedTets();
-
-    // compute functions
-    void computeMeshAngles();
+public slots :
+  void importVolume();
+  void importSizingField();
+  void importMesh();
+  void exportField(cleaver::FloatField *field);
+  void exportMesh(cleaver::TetMesh *mesh = NULL);
+  void about();
+  void handleNewMesh();
+  void handleDoneMeshing();
+  void handleRepaintGL();
+  void handleSizingFieldDone();
+  void handleExportField(void*);
+  void handleExportMesh(void*);
+  void handleDisableSizingField();
+  void handleDisableMeshing();
+  void handleProgress(int);
+  void handleError(std::string);
+  void handleMessage(std::string);
+  void closeEvent(QCloseEvent* event);
+  // edit functions
+  void removeExternalTets();
+  void removeLockedTets();
+  // compute functions
+  void computeMeshAngles();
 
 private:
-    void createDockWindows();
-    void createActions();
-    void createMenus();
+  void createDockWindows();
+  void createActions();
+  void createMenus();
+  MeshWindow * createWindow(const QString &title);
+  void enableMeshedVolumeOptions();
+  void disableAllActions();
+  void enablePossibleActions();
+  bool checkSaved();
 
 private:
-    static MainWindow *m_instance;
-    QMdiArea *m_workspace;
+  MeshWindow *window_;
+  MeshViewOptionsWidget *m_meshViewOptionsWidget;
+  CleaverWidget *m_cleaverWidget;
+  SizingFieldWidget *m_sizingFieldWidget;
+  DataManagerWidget *m_dataManagerWidget;
+  cleaver::CleaverMesher mesher_;
 
-    DataManager *m_dataManager;
-    MeshViewOptionsWidget *m_meshViewOptionsWidget;
-    CleaverWidget *m_cleaverWidget;
-    SizingFieldWidget *m_sizingFieldWidget;
-    DataManagerWidget *m_dataManagerWidget;
+  // File Menu Actions
+  QAction *importVolumeAct;
+  QAction *importSizingFieldAct;
+  QAction *importMeshAct;
+  QAction *exitAct;
 
-    // File Menu Actions
-    QAction *importVolumeAct;
-    QAction *importSizingFieldAct;
-    QAction *importMeshAct;
-    QAction *closeAct;
-    QAction *closeAllAct;
-    QAction *exitAct;
+  QAction *exportAct;
 
-    QAction *exportAct;
-    //QAction *exportAct2;
+  // Edit Menu Actions
+  QAction *removeExternalTetsAct;
+  QAction *removeLockedTetsAct;
 
-    // Edit Menu Actions
-    QAction *removeExternalTetsAct;
-    QAction *removeLockedTetsAct;
+  // Compute Menu Action
+  QAction *computeAnglesAct;
 
-    // Compute Menu Action
-    QAction *computeAnglesAct;
+  // Tool Menu Actions    
+  QAction *cleaverAction;
+  QAction *meshViewOptionsAction;
+  QAction *sizingFieldAction;
+  QAction *dataViewAction;
 
-    // View Menu Actions
-    QAction *resetCameraAct;
-    QAction *saveCameraAct;
-    QAction *loadCameraAct;
+  // About Menu Actions
+  QAction *aboutAct;
 
-    // Tool Menu Actions    
-    QAction *cleaverAction;
-    QAction *meshViewOptionsAction;
-    QAction *sizingFieldAction;
+  // Top Level Menus
+  QMenu *m_fileMenu;
+  QMenu *m_editMenu;
+  QMenu *m_viewMenu;
+  QMenu *m_helpMenu;
+  
+  //status bar items
+  QProgressBar * progressBar_;
 
-    // About Menu Actions
-    QAction *aboutAct;
+  std::string lastPath_, exePath_, scirun_path_, python_path_;
 
-    // Top Level Menus
-    QMenu *m_fileMenu;
-    QMenu *m_editMenu;
-    QMenu *m_computeMenu;
-    QMenu *m_viewMenu;
-    QMenu *m_toolsMenu;
-    QMenu *m_windowsMenu;
-    QMenu *m_helpMenu;
-
-
-    int m_iNumOpenWindows;
-	std::string lastPath_, exePath_;
+  //save statuses
+  bool meshSaved_, sizingFieldSaved_;
 };
 
 #endif // MAINWINDOW_H

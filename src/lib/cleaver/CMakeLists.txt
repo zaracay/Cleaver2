@@ -51,18 +51,25 @@ FILE(GLOB Cleaver_HEADER_FILES *.h)
 SET(Cleaver_API_HEADER_FILES
     Cleaver.h
     CleaverMesher.h
-    Octree.h            # remove on release    
+    CleaverMesherImpl.h
+    Octree.h            # remove on release
     AbstractField.h
     AbstractScalarField.h
     ScalarField.h
     SizingFieldCreator.h
+    SizingFieldOracle.h
     ConstantField.h
     InverseField.h
     ScaledField.h
     AbstractVolume.h
     Volume.h
-    TetMesh.h    
+    TetMesh.h
     Vertex.h
+    Geometry.h
+    HalfEdge.h
+    HalfFace.h
+    Face.h
+    Tet.h
     BoundingBox.h
     vec3.h
     Timer.h

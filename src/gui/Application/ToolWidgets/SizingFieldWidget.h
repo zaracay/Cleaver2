@@ -2,41 +2,59 @@
 #define DATALOADERWIDGET_H
 
 #include <QDockWidget>
-#include <QMdiSubWindow>
-#include <Cleaver/Volume.h>
-#include <Cleaver/CleaverMesher.h> // todo remove
+#include <Cleaver/CleaverMesher.h> 
+#include <QThread>
 
 namespace Ui {
 class SizingFieldWidget;
 }
 
-class SizingFieldWidget : public QDockWidget
-{
-    Q_OBJECT
-    
+//thread class for cleaver widget
+class SizingFieldThread : public QThread {
+  Q_OBJECT
 public:
-    explicit SizingFieldWidget(QWidget *parent = 0);
+  SizingFieldThread(cleaver::CleaverMesher& mesher,
+    QObject * parent, float scaling,
+    float factor, float speed, int padding, bool adapt);
+  ~SizingFieldThread();
+  void run();
+signals:
+  void sizingFieldDone();
+  void message(std::string);
+  void progress(int);
+  void errorMessage(std::string);
+private:
+  cleaver::CleaverMesher& mesher_;
+  float factor_, speed_, scaling_;
+  int padding_;
+  bool adapt_;
+};
+
+
+class SizingFieldWidget : public QDockWidget {
+    Q_OBJECT
+public:
+    explicit SizingFieldWidget(
+      cleaver::CleaverMesher& mesher,
+      QWidget *parent = NULL);
     ~SizingFieldWidget();
-
+    void setCreateButtonEnabled(bool b);
+  signals:
+    void sizingFieldDone();
+    void message(std::string);
+    void progress(int);
+    void errorMessage(std::string);
 public slots:
-
-    void focus(QMdiSubWindow *);
-    void loadIndicatorFunctions();
     void loadSizingField();
     void computeSizingField();
-    void updateVolumeList();
-    void volumeSelected(int index);
+    void handleSizingFieldDone();
+    void handleMessage(std::string);
+    void handleProgress(int);
+    void handleErrorMessage(std::string);
 
-protected:
-
-    void dragEnterEvent(QDragEnterEvent *event);
-    void dragLeaveEvent(QDragLeaveEvent *event);
-    void dropEvent(QDropEvent *event);
-    
 private:
     Ui::SizingFieldWidget *ui;
-    cleaver::Volume  *volume;
-    cleaver::CleaverMesher *mesher;
+    cleaver::CleaverMesher& mesher_;
 };
 
 #endif // DATALOADERWIDGET_H
